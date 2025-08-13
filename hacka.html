@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Orient-a-Tool</title>
+  <style>
+    /* -------- VARIABLES & RESET -------- */
+    :root {
+      --primary: #4e54c8;
+      --secondary: #8f94fb;
+      --accent: #ffdd57;
+      --text: #333;
+      --card-bg: rgba(255,255,255,0.85);
+      --radius: 12px;
+      --shadow: 0 4px 14px rgba(0,0,0,0.1);
+      --font: 'Segoe UI', Tahoma, sans-serif;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    html, body { height:100%; font-family: var(--font); color: var(--text); }
+
+    /* -------- LAYOUT & BACKGROUND -------- */
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      transition: background 0.5s ease;
+    }
+    .view {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 1.5rem;
+      width: 90%;
+      max-width: 380px;
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      transition: opacity 0.4s ease, transform 0.4s ease;
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    .visible {
+      display: flex;
+      opacity: 1;
+      transform: translateY(0);
+    }
+    img.icon {
+      width: 60px;
+      margin-bottom: 1rem;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+    }
+    h1 {
+      margin-bottom: 1rem;
+      font-size: 1.5rem;
+      letter-spacing: 1px;
+    }
+
+    /* -------- COMMON CONTROLS -------- */
+    button, input {
+      font-size: 1rem;
+      padding: .75rem 1.25rem;
+      margin: .5rem;
+      border: none;
+      border-radius: var(--radius);
+      background: var(--primary);
+      color: white;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+      transition: background 0.2s ease;
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    button:hover:not(:disabled) {
+      background: var(--secondary);
+    }
+    input {
+      background: #f7f7f7;
+      color: var(--text);
+      width: 100%;
+      max-width: 140px;
+      text-align: center;
+    }
+
+    /* -------- SPECIFIC DISPLAYS -------- */
+    #swDisplay, #timerDisplay {
+      font-size: 2.5rem;
+      margin: 1rem 0;
+      letter-spacing: 2px;
+      font-weight: bold;
+    }
+    #swDisplay { color: var(--accent); }
+    #timerDisplay { color: var(--primary); }
+
+    /* -------- STOPWATCH CONTROLS -------- */
+    .controls { display: flex; flex-wrap: wrap; justify-content: center; }
+    #lapList {
+      list-style: none;
+      width: 100%;
+      max-height: 120px;
+      overflow-y: auto;
+      margin-top: .75rem;
+      text-align: left;
+      padding-left: .5rem;
+    }
+    #lapList li {
+      padding: .25rem 0;
+      font-size: .9rem;
+      border-bottom: 1px solid #ddd;
+    }
+
+    /* -------- ORIENTATION MEDIA TWEAKS -------- */
+    @media (orientation: landscape) {
+      body { background: linear-gradient(135deg, var(--secondary), var(--primary)); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ALARM CLOCK (0°) -->
+  <div id="alarm" class="view">
+    <img src="https://img.icons8.com/ios-filled/100/000000/alarm-clock.png" class="icon" alt="Alarm">
+    <h1>Alarm Clock</h1>
+    <input type="time" id="alarmTime">
+    <button id="setAlarm">Set Alarm</button>
+    <audio id="alarmSound" src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg"></audio>
+  </div>
+
+  <!-- STOPWATCH (90°) -->
+  <div id="stopwatch" class="view">
+    <img src="https://img.icons8.com/ios-filled/100/000000/stopwatch.png" class="icon" alt="Stopwatch">
+    <h1>Stopwatch</h1>
+    <div id="swDisplay">00:00.00</div>
+    <div class="controls">
+      <button id="swStart">Start</button>
+      <button id="swPause" disabled>Pause</button>
+      <button id="swLap" disabled>Lap</button>
+      <button id="swReset" disabled>Reset</button>
+    </div>
+    <ul id="lapList"></ul>
+  </div>
+
+  <!-- TIMER (180°) -->
+  <div id="timer" class="view">
+    <img src="https://img.icons8.com/ios-filled/100/000000/hourglass.png" class="icon" alt="Timer">
+    <h1>Timer</h1>
+    <div class="controls">
+      <input type="number" id="timerMin" placeholder="Min" min="0">
+      <input type="number" id="timerSec" placeholder="Sec" min="0" max="59">
+      <button id="timerStart">Start</button>
+    </div>
+    <div id="timerDisplay">00:00</div>
+  </div>
+
+  <!-- WEATHER (270°) -->
+  <div id="weather" class="view">
+    <img src="https://img.icons8.com/ios-filled/100/000000/weather.png" class="icon" alt="Weather">
+    <h1>Weather</h1>
+    <div id="weatherInfo">
+      <div id="wIcon"></div>
+      <div id="wTemp" style="font-size:2rem; margin:.5rem 0;"></div>
+      <div id="wDesc" style="text-transform:capitalize;"></div>
+    </div>
+  </div>
+
+
+  <script>
+    /* -------- VIEW & ORIENTATION -------- */
+    const views = {
+      alarm: document.getElementById('alarm'),
+      stopwatch: document.getElementById('stopwatch'),
+      timer: document.getElementById('timer'),
+      weather: document.getElementById('weather')
+    };
+    function showView(key) {
+      Object.values(views).forEach(v => v.classList.remove('visible'));
+      views[key].classList.add('visible');
+      if (key === 'weather') loadWeather();
+    }
+    function handleOrient() {
+      let a = screen.orientation?.angle ?? window.orientation ?? 0;
+      a = ((a % 360) + 360) % 360;
+      if (a === 0) showView('alarm');
+      else if (a === 90) showView('stopwatch');
+      else if (a === 180) showView('timer');
+      else if (a === 270) showView('weather');
+    }
+    if (screen.orientation) screen.orientation.addEventListener('change', handleOrient);
+    else window.addEventListener('orientationchange', handleOrient);
+    window.addEventListener('load', handleOrient);
+
+
+    /* -------- ALARM -------- */
+    const alarmInput = document.getElementById('alarmTime');
+    const alarmSound = document.getElementById('alarmSound');
+    let alarmTO;
+    document.getElementById('setAlarm').onclick = () => {
+      clearTimeout(alarmTO);
+      const [h,m] = alarmInput.value.split(':').map(Number);
+      const now = new Date();
+      let at = new Date(now.getFullYear(),now.getMonth(),now.getDate(),h,m);
+      if (at <= now) at.setDate(at.getDate()+1);
+      alarmTO = setTimeout(() => alarmSound.play(), at - now);
+      alert('Alarm set ➜ ' + alarmInput.value);
+    };
+
+
+    /* -------- STOPWATCH -------- */
+    const swDisplay = document.getElementById('swDisplay');
+    const lapList   = document.getElementById('lapList');
+    let swStart=0, swElapsed=0, swID=0, laps=[];
+
+    function formatTime(ms) {
+      const total = Math.floor(ms/10);
+      const cs = total % 100;
+      const secs = Math.floor(total/100) % 60;
+      const mins = Math.floor(total/6000);
+      return `${String(mins).padStart(2,'0')}:` +
+             `${String(secs).padStart(2,'0')}.` +
+             `${String(cs).padStart(2,'0')}`;
+    }
+
+    function tick() {
+      const diff = Date.now() - swStart + swElapsed;
+      swDisplay.textContent = formatTime(diff);
+      swID = requestAnimationFrame(tick);
+    }
+
+    document.getElementById('swStart').onclick = () => {
+      swStart = Date.now(); 
+      swID && cancelAnimationFrame(swID);
+      swID = requestAnimationFrame(tick);
+      document.getElementById('swPause').disabled = false;
+      document.getElementById('swLap').disabled   = false;
+      document.getElementById('swReset').disabled = false;
+      document.getElementById('swStart').disabled = true;
+    };
+
+    document.getElementById('swPause').onclick = () => {
+      cancelAnimationFrame(swID);
+      swElapsed += Date.now() - swStart;
+      document.getElementById('swPause').disabled = true;
+      document.getElementById('swStart').disabled = false;
+    };
+
+    document.getElementById('swLap').onclick = () => {
+      const current = Date.now() - swStart + swElapsed;
+      laps.push(current);
+      const li = document.createElement('li');
+      li.textContent = `Lap ${laps.length} — ${formatTime(current)}`;
+      lapList.prepend(li);
+    };
+
+    document.getElementById('swReset').onclick = () => {
+      cancelAnimationFrame(swID);
+      swElapsed = 0; laps = [];
+      swDisplay.textContent = '00:00.00';
+      lapList.innerHTML = '';
+      ['swStart','swPause','swLap','swReset'].forEach(id => {
+        document.getElementById(id).disabled = (id !== 'swStart');
+      });
+    };
+
+
+    /* -------- TIMER -------- */
+    const timerDisplay = document.getElementById('timerDisplay');
+    let timerRem = 0, timerInt;
+    document.getElementById('timerStart').onclick = () => {
+      clearInterval(timerInt);
+      const m = Number(document.getElementById('timerMin').value) || 0;
+      const s = Number(document.getElementById('timerSec').value) || 0;
+      timerRem = m*60 + s;
+      timerDisplay.textContent = formatTime(timerRem*1000);
+      timerInt = setInterval(() => {
+        timerRem--;
+        timerDisplay.textContent = formatTime(timerRem*1000);
+        if (timerRem <= 0) {
+          clearInterval(timerInt);
+          alert('⏰ Time’s up!');
+        }
+      }, 1000);
+    };
+
+
+    /* -------- WEATHER -------- */
+    async function loadWeather() {
+      const cache = JSON.parse(localStorage.getItem('todayWeather')||'{}');
+      const today = new Date().toDateString();
+      if (cache.date === today) return showWeather(cache.data);
+
+      const KEY = '4df2a15d2937779f06221e0e8f5aa320';
+      try {
+        const res = await fetch(
+          `https://api.openweathermap.org/data/2.5/weather?q=Indore,in&units=metric&appid=${KEY}`
+        );
+        const data = await res.json();
+        localStorage.setItem('todayWeather', JSON.stringify({date:today,data}));
+        showWeather(data);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    function showWeather(d) {
+      document.getElementById('wIcon').innerHTML =
+        `<img src="https://openweathermap.org/img/wn/${d.weather[0].icon}@2x.png" alt="">`;
+      document.getElementById('wTemp').textContent = `${d.main.temp.toFixed(1)}°C`;
+      document.getElementById('wDesc').textContent = d.weather[0].description;
+    }
+  </script>
+</body>
+</html>
